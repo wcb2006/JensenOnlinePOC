@@ -1,0 +1,66 @@
+### Manuella attacktester mot API:t (Visual Studio / VS Code REST Client / Rider)
+### Starta API:t först: dotnet run --project src/JensenOnline.Api
+
+@api = https://localhost:7001
+
+### 1. Logga in som kund – kopiera accessToken till @customerToken nedan
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "kund@jensenonline.se", "password": "Kaffekopp#Bla2026" }
+
+###
+@customerToken = KLISTRA_IN_TOKEN_HÄR
+
+### 2. Kund försöker nå adminfunktion  => 403 Forbidden (loggas som AccessDenied)
+GET {{api}}/api/admin/users
+Authorization: Bearer {{customerToken}}
+
+### 3. Kund försöker skapa produkt  => 403 Forbidden
+POST {{api}}/api/products
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "name": "Gratis dator", "category": "Hack", "price": 0.01, "stock": 999, "description": "" }
+
+### 4. IDOR – läs någon annans order genom att byta ID  => 404 Not Found (loggas som OrderAccessDenied)
+GET {{api}}/api/orders/1
+Authorization: Bearer {{customerToken}}
+
+### 5. Manipulera pris i order  => 400 (okänt fält unitPrice avvisas)
+POST {{api}}/api/orders
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "items": [ { "productId": 1, "quantity": 1, "unitPrice": 0.01 } ] }
+
+### 6. Ogiltiga data  => 400 med valideringsfel
+POST {{api}}/api/orders
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "items": [ { "productId": 1, "quantity": 1000000 } ] }
+
+### 7. Mass assignment – registrera sig som admin  => 400
+POST {{api}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "hacker@example.com", "password": "Sakert#Losenord2026", "role": "Admin" }
+
+### 8. SQL injection i sökningen  => 200 med tom lista (behandlas som text)
+GET {{api}}/api/products?search=' OR 1=1 --
+
+### 9. Svagt lösenord  => 400
+POST {{api}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "svag@example.com", "password": "password" }
+
+### 10. Brute force – kör 6 gånger: 401 x5, sedan 423 Locked. Fler än 10/min => 429 Too Many Requests
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "kund2@jensenonline.se", "password": "Gissning#123456" }
+
+### 11. Ingen token  => 401
+GET {{api}}/api/orders/mine
